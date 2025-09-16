@@ -36,7 +36,7 @@ export default function TestPage() {
       setResult(null);
       setTranscript("");
       setTestState("idle");
-      const res = await fetch("/api/senses?mode=test&limit=1", { credentials: "include" });
+      const res = await fetch("/api/words?mode=test&limit=1", { credentials: "include" });
       if (!res.ok) throw new Error(`Failed to load (${res.status})`);
       const data = await res.json();
       setSense(data.items?.[0] ?? null);
@@ -62,7 +62,7 @@ export default function TestPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ senseId: sense.id, transcript: audioTranscript, durationMs: null }),
+        body: JSON.stringify({ wordId: sense.id, transcript: audioTranscript, durationMs: null }),
       });
       if (!res.ok) throw new Error(`Grading failed (${res.status})`);
       const data = await res.json();

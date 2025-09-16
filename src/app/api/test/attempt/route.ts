@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db/client";
-import { attempts, senses, words, userSense, users } from "@/db/schema";
+import { attempts, words, userSense, users } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { generateText } from 'ai';
@@ -36,6 +36,43 @@ function naiveScore(reference: string, transcript: string): { score: number; pas
   return { score, pass, feedback };
 }
 
+function naiveScoreMultiple(definitions: Array<{definition: string, partOfSpeech: string}>, transcript: string): { score: number; pass: boolean; feedback: string } {
+  const tr = transcript.toLowerCase();
+  let bestScore = 0;
+  let bestMatch: {definition: string, partOfSpeech: string} | null = null;
+  let bestResult: { score: number; pass: boolean; feedback: string } | null = null;
+  
+  // Try scoring against each definition and keep the best result
+  for (const def of definitions) {
+    const result = naiveScore(def.definition, transcript);
+    if (result.score > bestScore) {
+      bestScore = result.score;
+      bestMatch = def;
+      bestResult = result;
+    }
+  }
+  
+  if (!bestResult || !bestMatch) {
+    return { score: 0, pass: false, feedback: "No valid definitions found to compare against." };
+  }
+  
+  // Enhance feedback to mention which definition was matched
+  let enhancedFeedback = bestResult.feedback;
+  if (definitions.length > 1) {
+    if (bestResult.pass) {
+      enhancedFeedback = `Great! Your definition matches the ${bestMatch.partOfSpeech} meaning of the word. ` + enhancedFeedback;
+    } else {
+      enhancedFeedback += ` Note: This word has multiple meanings (${definitions.map(d => d.partOfSpeech).join(', ')}). Your answer was closest to the ${bestMatch.partOfSpeech} definition.`;
+    }
+  }
+  
+  return {
+    score: bestResult.score,
+    pass: bestResult.pass,
+    feedback: enhancedFeedback
+  };
+}
+
 export async function POST(req: NextRequest) {
   if (!db) return new NextResponse("Database not configured", { status: 500 });
   const { userId } = await auth();
@@ -47,25 +84,55 @@ export async function POST(req: NextRequest) {
   } catch {
     return new NextResponse("Invalid JSON", { status: 400 });
   }
-  const senseId = body?.senseId as string | undefined;
+  const wordId = body?.wordId as string | undefined;
   const transcript = body?.transcript as string | undefined;
   const durationMs = typeof body?.durationMs === "number" ? Math.max(0, Math.floor(body.durationMs)) : null;
-  if (!senseId || !transcript) return new NextResponse("Missing senseId or transcript", { status: 400 });
+  if (!wordId || !transcript) return new NextResponse("Missing wordId or transcript", { status: 400 });
 
-  // Load target sense + word
-  const [row] = await db
+  // Load target word
+  const [wordRow] = await db
     .select({
-      id: senses.id,
+      id: words.id,
       word: words.word,
-      pos: senses.pos,
-      definition: senses.definition,
-      example: senses.example,
     })
-    .from(senses)
-    .innerJoin(words, eq(senses.wordId, words.id))
-    .where(eq(senses.id, senseId as any))
+    .from(words)
+    .where(eq(words.id, wordId as any))
     .limit(1);
-  if (!row) return new NextResponse("Sense not found", { status: 404 });
+  if (!wordRow) return new NextResponse("Word not found", { status: 404 });
+
+  // Fetch all definitions from dictionary API
+  let allDefinitions: Array<{definition: string, partOfSpeech: string, example?: string}> = [];
+  let dictData: any = null;
+  
+  try {
+    const dictResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/dictionary/${encodeURIComponent(wordRow.word)}`);
+    if (dictResponse.ok) {
+      dictData = await dictResponse.json();
+      if (dictData.meanings && dictData.meanings.length > 0) {
+        // Collect all definitions across all meanings
+        allDefinitions = dictData.meanings.flatMap((meaning: any) =>
+          meaning.definitions.map((def: any) => ({
+            definition: def.definition,
+            partOfSpeech: meaning.partOfSpeech,
+            example: def.example || ""
+          }))
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Failed to fetch dictionary data:", error);
+    return new NextResponse("Failed to fetch word definition", { status: 500 });
+  }
+
+  if (allDefinitions.length === 0) {
+    return new NextResponse("No definition found for this word", { status: 404 });
+  }
+
+  // Use the first definition as primary for backwards compatibility
+  const primaryDefinition = allDefinitions[0];
+  const definition = primaryDefinition.definition;
+  const partOfSpeech = primaryDefinition.partOfSpeech;
+  const example = primaryDefinition.example;
 
   // Ensure user exists to satisfy FK constraints
   await db
@@ -80,7 +147,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
     try {
-      const system = `You are an expert SAT vocabulary tutor grading student definitions. Provide constructive, encouraging feedback that helps students learn.
+      const system = `You are an expert SAT vocabulary tutor grading student definitions. The word may have multiple valid definitions across different parts of speech. Give credit if the student captures any of the valid meanings.
 
 Return strict JSON with these keys:
 - score (0..1): Numerical accuracy score
@@ -89,19 +156,26 @@ Return strict JSON with these keys:
 - keyPoints (array): 1-2 key concepts they captured or missed
 
 Guidelines for feedback:
+- Give credit for capturing any valid definition of the word
 - Start positive when possible ("Good job capturing...")
 - Be specific about what was right/wrong
+- If they got a different but valid meaning, acknowledge it
 - Suggest improvements for incorrect answers
 - Keep it encouraging and educational
 - Focus on meaning, not exact wording`;
 
-      const user = `Word: ${row.word} (${row.pos})
-Target Definition: ${row.definition}
-${row.example ? `Example: ${row.example}` : ''}
+      const allDefinitionsText = allDefinitions.map((def, index) => 
+        `${index + 1}. (${def.partOfSpeech}) ${def.definition}${def.example ? ` - Example: ${def.example}` : ''}`
+      ).join('\n');
+
+      const user = `Word: ${wordRow.word}
+
+All Valid Definitions:
+${allDefinitionsText}
 
 Student Response: "${transcript}"
 
-Grade this definition and provide helpful feedback.`;
+Grade this definition considering all valid meanings. Give credit if they capture any of the definitions above.`;
       
       const { text } = await generateText({
         model: openai('gpt-5-nano'),
@@ -122,13 +196,13 @@ Grade this definition and provide helpful feedback.`;
         feedback = `${feedback}\n\nKey Points:\n${keyPointsText}`;
       }
     } catch (e) {
-      const res = naiveScore(row.definition, transcript);
+      const res = naiveScoreMultiple(allDefinitions, transcript);
       score = res.score;
       passed = res.pass;
       feedback = res.feedback;
     }
   } else {
-    const res = naiveScore(row.definition, transcript);
+    const res = naiveScoreMultiple(allDefinitions, transcript);
     score = res.score;
     passed = res.pass;
     feedback = res.feedback;
@@ -138,7 +212,7 @@ Grade this definition and provide helpful feedback.`;
   await db.insert(attempts).values({
     id: attemptId as any,
     userId,
-    senseId: senseId as any,
+    wordId: wordId as any,
     transcript,
     model: process.env.OPENAI_API_KEY ? "gpt-5-nano" : "naive",
     score,
@@ -153,7 +227,7 @@ Grade this definition and provide helpful feedback.`;
     .values({
       id: uuidv4() as any,
       userId,
-      senseId: senseId as any,
+      wordId: wordId as any,
       firstSeenAt: sql`now()` as any,
       reviewedAt: sql`now()` as any,
       lastAttemptAt: sql`now()` as any,
@@ -163,7 +237,7 @@ Grade this definition and provide helpful feedback.`;
       lastResult: passed ? "pass" : "fail",
     })
     .onConflictDoUpdate({
-      target: [userSense.userId, userSense.senseId],
+      target: [userSense.userId, userSense.wordId],
       set: {
         reviewedAt: sql`coalesce(${userSense.reviewedAt}, now())` as any,
         firstSeenAt: sql`coalesce(${userSense.firstSeenAt}, now())` as any,

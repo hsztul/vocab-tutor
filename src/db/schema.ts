@@ -15,30 +15,15 @@ export const words = pgTable("words", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// senses (deterministic id recommended: UUIDv5 over `${word}::${pos}::${definition.trim()}`)
-export const senses = pgTable(
-  "senses",
-  {
-    id: uuid("id").primaryKey(),
-    wordId: uuid("word_id").notNull().references(() => words.id, { onDelete: "cascade" }),
-    pos: text("pos").notNull(),
-    definition: text("definition").notNull(),
-    example: text("example"),
-    ordinal: integer("ordinal"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => ({
-    wordOrdinalIdx: index("senses_word_ordinal_idx").on(table.wordId, table.ordinal),
-  })
-);
+// Removed senses table - definitions now fetched dynamically from dictionary API
 
-// user_sense
+// user_sense - now references words directly instead of senses
 export const userSense = pgTable(
   "user_sense",
   {
     id: uuid("id").primaryKey(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    senseId: uuid("sense_id").notNull().references(() => senses.id, { onDelete: "cascade" }),
+    wordId: uuid("word_id").notNull().references(() => words.id, { onDelete: "cascade" }),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
@@ -50,17 +35,18 @@ export const userSense = pgTable(
   },
   (table) => ({
     userReviewedIdx: index("user_sense_user_reviewed_idx").on(table.userId, table.reviewedAt),
-    userSenseUnique: unique("user_sense_user_sense_unique").on(table.userId, table.senseId),
+    userWordUnique: unique("user_sense_user_word_unique").on(table.userId, table.wordId),
+    wordIdx: index("user_sense_word_idx").on(table.wordId),
   })
 );
 
-// attempts
+// attempts - now references words directly instead of senses
 export const attempts = pgTable(
   "attempts",
   {
     id: uuid("id").primaryKey(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    senseId: uuid("sense_id").notNull().references(() => senses.id, { onDelete: "cascade" }),
+    wordId: uuid("word_id").notNull().references(() => words.id, { onDelete: "cascade" }),
     transcript: text("transcript").notNull(),
     model: text("model").notNull(),
     score: doublePrecision("score"), // 0..1 per PRD
@@ -71,5 +57,6 @@ export const attempts = pgTable(
   },
   (table) => ({
     userCreatedIdx: index("attempts_user_created_idx").on(table.userId, table.createdAt),
+    wordIdx: index("attempts_word_idx").on(table.wordId),
   })
 );

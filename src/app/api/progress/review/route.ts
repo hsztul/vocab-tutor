@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return new NextResponse("Invalid JSON", { status: 400 });
   }
-  const senseId = body?.senseId as string | undefined;
-  if (!senseId) return new NextResponse("Missing senseId", { status: 400 });
+  const wordId = body?.wordId as string | undefined;
+  if (!wordId) return new NextResponse("Missing wordId", { status: 400 });
 
   // Ensure user exists to satisfy FK
   await ensureUserRecord(userId);
@@ -30,12 +30,12 @@ export async function POST(req: NextRequest) {
     .values({
       id: uuidv4() as any,
       userId,
-      senseId: senseId as any,
+      wordId: wordId as any,
       firstSeenAt: sql`now()` as any,
       reviewedAt: sql`now()` as any,
     })
     .onConflictDoUpdate({
-      target: [userSense.userId, userSense.senseId],
+      target: [userSense.userId, userSense.wordId],
       set: {
         reviewedAt: sql`coalesce(${userSense.reviewedAt}, now())` as any,
         firstSeenAt: sql`coalesce(${userSense.firstSeenAt}, now())` as any,
