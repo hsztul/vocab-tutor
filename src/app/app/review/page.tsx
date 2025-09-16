@@ -29,6 +29,27 @@ export default function ReviewPage() {
   const [index, setIndex] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [isLandscape, setIsLandscape] = React.useState(false);
+  const [cardFlipped, setCardFlipped] = React.useState(false);
+
+  // Detect mobile landscape orientation
+  React.useEffect(() => {
+    const checkOrientation = () => {
+      const isMobile = window.innerWidth <= 1024; // Only consider mobile/tablet sizes
+      const isLandscapeOrientation = window.innerHeight < window.innerWidth;
+      setIsLandscape(isMobile && isLandscapeOrientation);
+    };
+    
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
+
 
   // Fetch words from backend (review mode)
   React.useEffect(() => {
@@ -100,10 +121,16 @@ export default function ReviewPage() {
 
   const goPrev = () => {
     setIndex((i) => (i - 1 + words.length) % words.length);
+    setCardFlipped(false); // Reset flip state when changing cards
   };
 
   const goNext = () => {
     setIndex((i) => (i + 1) % words.length);
+    setCardFlipped(false); // Reset flip state when changing cards
+  };
+
+  const flipCard = () => {
+    setCardFlipped(!cardFlipped);
   };
 
   const markAsReviewed = async () => {
@@ -127,6 +154,67 @@ export default function ReviewPage() {
       });
   };
 
+  // Keyboard navigation
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle keys when not typing in an input/textarea
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          if (hasPrev) goPrev();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          if (hasNext) goNext();
+          break;
+        case ' ':
+        case 'Space':
+          event.preventDefault();
+          flipCard();
+          break;
+        case 'Enter':
+          event.preventDefault();
+          if (current) toggleQueue();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasPrev, hasNext, goPrev, goNext, current, toggleQueue, flipCard]);
+
+  // Landscape mode: simplified layout with full-screen card
+  if (isLandscape) {
+    return (
+      <div className="h-screen">
+        {loading ? (
+          <Skeleton className="h-full w-full" />
+        ) : !current ? (
+          <div className="h-full w-full rounded-lg border border-black/10 dark:border-white/10 grid place-items-center text-sm text-foreground/60">
+            No words found. Try ingesting the dataset on the Admin page.
+          </div>
+        ) : (
+          <Flashcard
+            word={current.word}
+            className="h-full"
+            flipped={cardFlipped}
+            onFlip={setCardFlipped}
+            onNext={goNext}
+            onPrev={goPrev}
+            onToggleKnown={toggleQueue}
+            isKnown={queuedMap[current.id]}
+            cardCount={`${index + 1} / ${words.length}`}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Portrait mode: original layout
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
@@ -167,6 +255,12 @@ export default function ReviewPage() {
             <Flashcard
               word={current.word}
               className="w-full max-w-md"
+              flipped={cardFlipped}
+              onFlip={setCardFlipped}
+              isKnown={queuedMap[current.id]}
+              onNext={goNext}
+              onPrev={goPrev}
+              onToggleKnown={toggleQueue}
             />
 
             <div className="space-y-2">

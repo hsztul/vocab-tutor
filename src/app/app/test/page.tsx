@@ -3,9 +3,8 @@
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { posLabel } from "@/lib/pos";
+import { TestFlashcard } from "@/components/test-flashcard";
 import { toast } from "sonner";
-import { Mic, MicOff, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 type Sense = {
   id: string;
@@ -75,12 +74,6 @@ export default function TestPage() {
       
       setResult(gradeResult);
       setTestState("result");
-      
-      // Show immediate feedback
-      toast.success(gradeResult.pass ? "🎉 Correct!" : "📚 Keep practicing", {
-        description: `${(gradeResult.score * 100).toFixed(0)}% — ${gradeResult.feedback}`,
-        duration: 3000,
-      });
     } catch (e: any) {
       setError(e?.message || "Grading failed");
       setTestState("idle");
@@ -190,161 +183,29 @@ export default function TestPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Word Display */}
-          <div className="rounded-lg border border-black/10 dark:border-white/10 p-6 space-y-3 bg-gradient-to-br from-background to-muted/20">
-            <div className="text-xs text-foreground/60 uppercase tracking-wide">
-              Sense {sense.ordinal} of {sense.totalSensesForWord}
-            </div>
-            <div className="text-3xl font-bold tracking-tight">
-              {sense.word}
-            </div>
-            <div className="text-sm text-foreground/70 font-medium">
-              {posLabel(sense.pos)}
-            </div>
-          </div>
-
-          {/* Recording Interface */}
-          <div className="rounded-lg border border-black/10 dark:border-white/10 p-6 space-y-4">
-            <div className="text-center space-y-4">
-              {testState === "idle" && (
-                <div className="space-y-3">
-                  <div className="text-sm text-foreground/70">
-                    Press start and speak the definition clearly
-                  </div>
-                  <Button 
-                    size="lg" 
-                    onClick={startRecording}
-                    className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 text-white transition-all duration-200 hover:scale-105"
-                  >
-                    <Mic className="h-6 w-6" />
-                  </Button>
-                </div>
-              )}
-
-              {isRecording && (
-                <div className="space-y-3">
-                  <div className="text-sm text-red-600 dark:text-red-400 font-medium animate-pulse">
-                    🔴 Recording... speak your definition
-                  </div>
-                  <Button 
-                    size="lg" 
-                    onClick={stopRecording}
-                    variant="destructive"
-                    className="h-16 w-16 rounded-full transition-all duration-200 hover:scale-105"
-                  >
-                    <MicOff className="h-6 w-6" />
-                  </Button>
-                </div>
-              )}
-
-              {isProcessing && (
-                <div className="space-y-3">
-                  <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-                    🔄 Transcribing audio...
-                  </div>
-                  <div className="h-16 w-16 mx-auto rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 text-blue-600 dark:text-blue-400 animate-spin" />
-                  </div>
-                </div>
-              )}
-
-              {isGrading && (
-                <div className="space-y-3">
-                  <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">
-                    🤖 Grading your response...
-                  </div>
-                  <div className="h-16 w-16 mx-auto rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 text-purple-600 dark:text-purple-400 animate-spin" />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Transcript Display */}
-            {transcript && (
-              <div className="rounded-md bg-muted/50 p-4 space-y-2">
-                <div className="text-xs text-foreground/60 uppercase tracking-wide">
-                  Your Response
-                </div>
-                <div className="text-sm text-foreground">
-                  "{transcript}"
-                </div>
-              </div>
-            )}
-
-            {/* Result Display */}
-            {result && testState === "result" && (
-              <div className={`rounded-md p-4 space-y-3 transition-all duration-300 ${
-                result.pass 
-                  ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800" 
-                  : "bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800"
-              }`}>
-                <div className="flex items-center gap-2">
-                  {result.pass ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  )}
-                  <div className={`font-semibold ${
-                    result.pass 
-                      ? "text-emerald-700 dark:text-emerald-300" 
-                      : "text-rose-700 dark:text-rose-300"
-                  }`}>
-                    {result.pass ? "Correct!" : "Keep practicing"}
-                  </div>
-                  <div className="text-sm text-foreground/70">
-                    {(result.score * 100).toFixed(0)}%
-                  </div>
-                </div>
-                {result.feedback && (
-                  <div className="text-sm text-foreground/80 space-y-2">
-                    {result.feedback.split('\n').map((line, index) => {
-                      if (line.trim() === '') return null;
-                      if (line.startsWith('Key Points:')) {
-                        return (
-                          <div key={index} className="font-medium text-foreground/90 mt-3 mb-1">
-                            {line}
-                          </div>
-                        );
-                      }
-                      if (line.startsWith('•')) {
-                        return (
-                          <div key={index} className="text-sm text-foreground/75 ml-2">
-                            {line}
-                          </div>
-                        );
-                      }
-                      return (
-                        <div key={index} className="text-sm">
-                          {line}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="flex flex-col items-center space-y-4">
+            <TestFlashcard
+              word={sense.word}
+              pos={sense.pos}
+              ordinal={sense.ordinal}
+              totalSenses={sense.totalSensesForWord}
+              testState={testState}
+              transcript={transcript}
+              result={result}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
+              className="w-full max-w-2xl"
+            />
 
             {/* Action Buttons */}
-            <div className="flex justify-center gap-3 pt-2">
-              {testState === "result" && (
-                <Button onClick={loadSense} className="transition-all duration-200">
-                  Next Word
-                </Button>
-              )}
-              {testState === "idle" && transcript && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => processTranscriptAndGrade(transcript)}
-                  disabled={!transcript.trim()}
-                >
-                  Grade Response
-                </Button>
-              )}
-            </div>
+            {testState === "result" && (
+              <Button onClick={loadSense} className="transition-all duration-200">
+                Next Word
+              </Button>
+            )}
 
             {error && (
-              <div className="text-sm text-rose-600 dark:text-rose-400 text-center bg-rose-50 dark:bg-rose-900/20 rounded-md p-3">
+              <div className="text-sm text-rose-600 dark:text-rose-400 text-center bg-rose-50 dark:bg-rose-900/20 rounded-md p-3 max-w-md">
                 {error}
               </div>
             )}

@@ -32,7 +32,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { word: string } }
 ) {
-  const word = params.word;
+  const { word } = await params;
   
   if (!word) {
     return NextResponse.json({ error: "Word parameter is required" }, { status: 400 });
