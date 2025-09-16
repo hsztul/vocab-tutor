@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Flashcard } from "react-quizlet-flashcard";
-import "react-quizlet-flashcard/dist/index.css";
+import { Flashcard } from "@/components/flashcard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { posLabel } from "@/lib/pos";
@@ -19,23 +18,29 @@ type Sense = {
   totalSensesForWord: number;
 };
 
+type Word = {
+  id: string;
+  word: string;
+  queued: boolean;
+};
+
 export default function ReviewPage() {
-  const [senses, setSenses] = React.useState<Sense[]>([]);
+  const [words, setWords] = React.useState<Word[]>([]);
   const [index, setIndex] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Fetch senses from backend (review mode)
+  // Fetch words from backend (review mode)
   React.useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/senses?mode=review&limit=50`, { credentials: "include" });
-        if (!res.ok) throw new Error(`Failed to load senses (${res.status})`);
+        const res = await fetch(`/api/words?mode=review&limit=1000`, { credentials: "include" });
+        if (!res.ok) throw new Error(`Failed to load words (${res.status})`);
         const data = await res.json();
         if (!cancelled) {
-          setSenses(data.items ?? []);
+          setWords(data.items ?? []);
           setIndex(0);
           setError(null);
         }
@@ -51,18 +56,25 @@ export default function ReviewPage() {
     };
   }, []);
 
-  const current = senses[index] ?? null;
+  const current = words[index] ?? null;
+  const hasNext = index < words.length - 1;
+  const hasPrev = index > 0;
   const [queuedMap, setQueuedMap] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    if (!current) return;
+    setQueuedMap((m) => ({ ...m, [current.id]: current.queued }));
+  }, [current]);
 
   React.useEffect(() => {
     // Initialize queued map from API result if provided
     const map: Record<string, boolean> = {};
-    for (const s of senses) {
+    for (const s of words) {
       // @ts-ignore queued may exist from API
       if (typeof (s as any).queued === "boolean") map[s.id] = (s as any).queued;
     }
     setQueuedMap(map);
-  }, [senses]);
+  }, [words]);
 
   const toggleQueue = async () => {
     if (!current) return;
@@ -73,11 +85,11 @@ export default function ReviewPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ senseId: current.id, queued: nextQueued }),
+        body: JSON.stringify({ wordId: current.id, queued: nextQueued }),
       });
       if (!res.ok) throw new Error(String(res.status));
       toast.success(nextQueued ? "Queued for Test" : "Removed from Test queue", {
-        description: `${current.word} (${posLabel(current.pos)})`,
+        description: current.word,
         duration: 1500,
       });
     } catch (e: any) {
@@ -87,10 +99,11 @@ export default function ReviewPage() {
   };
 
   const goPrev = () => {
-    setIndex((i) => (i - 1 + senses.length) % senses.length);
+    setIndex((i) => (i - 1 + words.length) % words.length);
   };
+
   const goNext = () => {
-    setIndex((i) => (i + 1) % senses.length);
+    setIndex((i) => (i + 1) % words.length);
   };
 
   const markAsReviewed = async () => {
@@ -100,12 +113,12 @@ export default function ReviewPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ senseId: current.id }),
+      body: JSON.stringify({ wordId: current.id }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(String(res.status));
         toast.success("Marked as reviewed", {
-          description: `${current.word} (${posLabel(current.pos)})`,
+          description: current.word,
           duration: 1500,
         });
       })
@@ -136,7 +149,7 @@ export default function ReviewPage() {
       ) : !current ? (
         <div className="space-y-3">
           <div className="h-64 w-full rounded-lg border border-black/10 dark:border-white/10 grid place-items-center text-sm text-foreground/60">
-            No senses found. Try ingesting the dataset on the Admin page.
+            No words found. Try ingesting the dataset on the Admin page.
           </div>
           <div className="flex items-center justify-end gap-2">
             <Button asChild variant="outline">
@@ -146,39 +159,14 @@ export default function ReviewPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-foreground/70">
-            <div>
-              Sense {current.ordinal} of {current.totalSensesForWord} for
-              <span className="font-medium text-foreground"> {current.word}</span>
-            </div>
-            <div className="text-foreground/60">
-              Card {index + 1} / {senses.length}
-            </div>
+          <div className="flex items-center justify-center text-sm text-foreground/60">
+            Word {index + 1} / {words.length}
           </div>
 
           <div className="space-y-3 flex flex-col items-center">
             <Flashcard
-              front={{
-                html: (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <div className="text-lg font-medium">
-                      {current.word} ({posLabel(current.pos)})
-                    </div>
-                  </div>
-                )
-              }}
-              back={{
-                html: (
-                  <div className="p-6 space-y-3 h-full flex flex-col justify-center">
-                    <div className="text-base leading-relaxed">{current.definition}</div>
-                    {current.example && (
-                      <div className="text-sm text-foreground/70 italic">
-                        "{current.example}"
-                      </div>
-                    )}
-                  </div>
-                )
-              }}
+              word={current.word}
+              className="w-full max-w-md"
             />
 
             <div className="space-y-2">
