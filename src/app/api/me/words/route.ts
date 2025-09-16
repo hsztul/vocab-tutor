@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db/client";
-import { userSense, senses, words } from "@/db/schema";
+import { userSense, words } from "@/db/schema";
 import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { ensureUserRecord } from "@/lib/ensure-user";
 
@@ -13,19 +13,18 @@ export async function GET(_req: NextRequest) {
   if (!userId) return NextResponse.json({ words: [] });
   await ensureUserRecord(userId);
 
-  // Get word-level progress roll-ups
+  // Get word-level progress roll-ups (simplified schema: one logical "sense" per word)
   const wordProgress = await db
     .select({
       word: words.word,
-      totalSenses: count(senses.id),
+      totalSenses: sql<number>`1`,
       reviewedSenses: sql<number>`COUNT(CASE WHEN ${userSense.reviewedAt} IS NOT NULL THEN 1 END)`,
       passedSenses: sql<number>`COUNT(CASE WHEN ${userSense.passedAt} IS NOT NULL THEN 1 END)`,
     })
     .from(words)
-    .innerJoin(senses, eq(senses.wordId, words.id))
     .leftJoin(
       userSense,
-      and(eq(userSense.senseId, senses.id), eq(userSense.userId, userId))
+      and(eq(userSense.wordId, words.id), eq(userSense.userId, userId))
     )
     .groupBy(words.id, words.word)
     .orderBy(words.word);

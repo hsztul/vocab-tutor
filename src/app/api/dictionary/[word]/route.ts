@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -29,10 +29,10 @@ interface DictionaryEntry {
 }
 
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { word: string } }
+  _req: Request,
+  context: any
 ) {
-  const { word } = await params;
+  const { word } = (context?.params ?? {}) as { word?: string };
   
   if (!word) {
     return NextResponse.json({ error: "Word parameter is required" }, { status: 400 });
