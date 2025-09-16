@@ -1,0 +1,37 @@
+[
+  {
+    "word": "abase",
+    "senses": [
+      {
+        "pos": "v",
+        "definition": "to humiliate; degrade",
+        "example": "The tyrant sought to abase his rivals."
+      }
+    ]
+  },
+  {
+    "word": "compound",
+    "senses": [
+      {
+        "pos": "n",
+        "definition": "a mixture; combination",
+        "example": "The chemical compound was stable."
+      },
+      {
+        "pos": "v",
+        "definition": "to make worse; intensify",
+        "example": "Late fees will compound your debt."
+      }
+    ]
+  },
+  {
+    "word": "alleviate",
+    "senses": [
+      {
+        "pos": "v",
+        "definition": "to make more bearable; relieve",
+        "example": "This policy aims to alleviate traffic congestion."
+      }
+    ]
+  }
+]

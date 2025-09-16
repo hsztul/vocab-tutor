@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { SafeClerkProvider } from "@/components/providers/safe-clerk-provider";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
+// Note: we'll ensure the user inside API routes until DB schema fix is applied
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,12 +26,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
+    <SafeClerkProvider>
+      <html lang="en">
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          {children}
+          <Toaster richColors position="top-center" />
+        </body>
+      </html>
+    </SafeClerkProvider>
   );
 }
