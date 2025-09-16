@@ -105,7 +105,15 @@ export async function POST(req: NextRequest) {
   let dictData: any = null;
   
   try {
-    const dictResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/dictionary/${encodeURIComponent(wordRow.word)}`);
+    // Resolve the correct origin in all environments (Vercel, dev, preview)
+    const origin = (req as any)?.nextUrl?.origin 
+      || (() => {
+        const proto = req.headers.get('x-forwarded-proto') || 'https';
+        const host = req.headers.get('host') || 'localhost:3000';
+        return `${proto}://${host}`;
+      })();
+
+    const dictResponse = await fetch(`${origin}/api/dictionary/${encodeURIComponent(wordRow.word)}`);
     if (dictResponse.ok) {
       dictData = await dictResponse.json();
       if (dictData.meanings && dictData.meanings.length > 0) {

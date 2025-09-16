@@ -132,7 +132,7 @@ export function Flashcard({
 
   return (
     <div
-      className={`w-full ${isLandscape ? 'h-full' : 'aspect-[3/2]'} [perspective:1000px] ${className} relative`}
+      className={`mx-auto max-w-[90vw] max-h-[90vh] ${isLandscape ? 'h-[90vh]' : 'w-[90vw] aspect-[3/2]'} [perspective:1000px] relative ${className}`}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onClick={isLandscape ? undefined : handleToggle}

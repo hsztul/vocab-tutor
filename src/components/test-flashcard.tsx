@@ -58,7 +58,7 @@ export function TestFlashcard({
   const isGrading = testState === "grading";
 
   return (
-    <div className={`w-full aspect-[4/3] [perspective:1000px] ${className}`}>
+    <div className={`mx-auto max-w-[90vw] max-h-[90vh] w-[90vw] aspect-[4/3] [perspective:1000px] ${className}`}>
       <div
         className="relative h-full w-full transition-transform duration-300 [transform-style:preserve-3d]"
         style={{

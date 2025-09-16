@@ -30,9 +30,9 @@ interface DictionaryEntry {
 
 export async function GET(
   _req: Request,
-  context: any
+  { params }: { params: Promise<{ word: string }> }
 ) {
-  const { word } = (context?.params ?? {}) as { word?: string };
+  const { word } = await params;
   
   if (!word) {
     return NextResponse.json({ error: "Word parameter is required" }, { status: 400 });
